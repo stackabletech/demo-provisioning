@@ -1,0 +1,122 @@
+---
+- name: Ensure necessary paths are created
+  file:
+    path: "{{ item }}"
+    mode: 0644
+    owner: root
+    group: root
+    state: directory
+  with_items:
+    - "{{ agent.parceldirectory }}"
+    - "{{ agent.configdirectory }}"
+    - "{{ agent.statedirectory }}"
+    - "{{ agent.binarydirectory }}"
+    - "{{ agent.logdirectory }}"
+
+- name: Install necessary packages
+  yum:
+    name: ["git", "maven2", "java-11-openjdk-devel"]
+    state: present
+
+- name: Copy private deploy key
+  copy:
+    src: id_rsa
+    dest: /root/.ssh/id_rsa
+    mode: 0600
+    owner: root
+    group: root
+
+- name: Copy public deploy key
+  copy:
+    src: id_rsa.pub
+    dest: /root/.ssh/id_rsa.pub
+    mode: 0644
+    owner: root
+    group: root
+
+- name: Clone agent repository
+  git:
+    repo: git@github.com:opencore/distro-agent.git
+    dest: /root/distro-agent
+    accept_hostkey: yes
+    version: "{{ agent.version }}"
+  register: clone
+
+- name: Build agent
+  command: /usr/bin/mvn clean package
+  args:
+    chdir: /root/distro-agent
+  environment:
+    JAVA_HOME: /usr/lib/jvm/java-11-openjdk
+  when: clone.changed
+
+- name: Remove old version of agent
+  file:
+    path: "{{ agent.binarydirectory }}"
+    state: absent
+  when: clone.changed
+
+- name: Copy new version of orchestrator in place
+  command: cp -r /root/distro-agent/target {{ agent.binarydirectory }}
+  when: clone.changed
+
+- name: Create agent config
+  template:
+    src: agent.conf.j2
+    dest: "{{ agentconfiglocation }}"
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    restart stackable agent
+
+- name: Create agent service
+  template:
+    src: stackable-agent.service.j2
+    dest: "{{ agent.servicedirectory }}/stackable-agent.service"
+
+- name: Start agent service
+  systemd:
+    name: stackable-agent
+    state: started
+    enabled: true
+    daemon_reload: yes
+
+
+- name: Install key for elastic repository
+  rpm_key:
+    state: present
+    key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+  when: install_filebeat
+
+- name: Install elastic repo
+  yum_repository:
+    name: "elasticsearch-{{ filebeat_repo_version }}"
+    description: Elasticsearch Repository
+    baseurl: "{{ filebeat_repo_baseurl }}"
+    state: present
+  when: install_filebeat
+
+- name: Install Filebeat
+  yum:
+    name: filebeat
+    state: present
+    update_cache: yes
+  when: install_filebeat
+
+- name: Create input module directory
+  file:
+    path: /etc/filebeat/inputs.d
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+  when: install_filebeat
+
+- name: Start filebeat service
+  systemd:
+    name: filebeat
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: install_filebeat

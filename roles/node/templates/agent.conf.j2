@@ -1,0 +1,9 @@
+parcel.directory={{ agent.parceldirectory }}
+service.directory={{ agent.servicedirectory }}
+config.directory={{ agent.stateconfdir }}
+state.directory={{ agent.statedirectory }}
+log.directory={{ agent.logdirectory }}
+
+agent.id={{ agent.id }}
+agent.host={{ agent.host }}
+orchestrator.baseurl=http://{{ hostvars[groups.orchestrator[0]]['inventory_hostname']}}.{{ domain }}:{{ orchestrator.port }}/apis/

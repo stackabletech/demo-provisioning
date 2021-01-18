@@ -1,0 +1,12 @@
+---
+orchestratortest:
+  binarydirectory: "/opt/distro/orchestrator"
+  binaryfile: "orchestrator-0.1.jar"
+
+  servicedirectory: "/etc/systemd/system"
+
+  version: HEAD
+  port: 8080
+
+orchestratorbinarylocation: "{{ orchestratortest.binarydirectory }}/{{ orchestratortest.binaryfile }}"
+

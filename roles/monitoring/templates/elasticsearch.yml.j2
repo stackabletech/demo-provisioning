@@ -1,0 +1,4 @@
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+network.host: {{ inventory_hostname }}
+cluster.initial_master_nodes: ["{{ inventory_hostname }}"]

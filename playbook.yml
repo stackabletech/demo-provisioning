@@ -1,0 +1,22 @@
+---
+- hosts: nat
+  roles:
+    - { role: nat, tags: "nat" }
+  become: yes
+  become_user: root
+
+- hosts: demo
+  roles:
+    - {role: common, tags: "common"}
+
+- hosts: orchestrator
+  roles:
+    - {role: orchestrator, tags: "orchestrator"}
+
+- hosts: nodes
+  roles:
+    - {role: node, tags: "node"}
+
+- hosts: monitoring
+  roles:
+    - {role: monitoring, tags: "monitoring"}

@@ -1,0 +1,76 @@
+---
+- name: Install necessary packages
+  yum:
+    name: ["git", "maven2", "java-11-openjdk-devel"]
+    state: present
+
+- name: Ensure necessary paths are created
+  file:
+    path: "{{ item }}"
+    mode: 0644
+    owner: root
+    group: root
+    state: directory
+  with_items:
+    - "{{ orchestratortest.binarydirectory }}"
+
+- name: Copy private deploy key
+  copy:
+    src: id_rsa
+    dest: /root/.ssh/id_rsa
+    mode: 0600
+    owner: root
+    group: root
+
+- name: Copy public deploy key
+  copy:
+    src: id_rsa.pub
+    dest: /root/.ssh/id_rsa.pub
+    mode: 0644
+    owner: root
+    group: root
+
+- name: Clone orchestrator repository
+  git:
+    repo: git@github.com:opencore/distro-orchestrator.git
+    dest: /root/distro-orchestrator
+    accept_hostkey: yes
+    version: "{{ orchestratortest.version }}"
+  register: clone
+
+- name: Build orchestrator
+  command: /usr/bin/mvn clean package
+  args:
+    chdir: /root/distro-orchestrator
+  environment:
+    JAVA_HOME: /usr/lib/jvm/java-11-openjdk
+  when: clone.changed
+
+- name: Remove old version of orchestrator
+  file:
+    path: "{{ orchestratortest.binarydirectory }}"
+    state: absent
+  when: clone.changed
+
+- name: Copy new version of orchestrator in place
+  command: cp -r /root/distro-orchestrator/target {{ orchestratortest.binarydirectory }}
+  when: clone.changed
+
+- name: Create orchestrator service
+  template:
+    src: stackable-orchestrator.service.j2
+    dest: "{{ orchestratortest.servicedirectory }}/stackable-orchestrator.service"
+
+- name: Start orchestrator service
+  systemd:
+    name: stackable-orchestrator
+    state: started
+    enabled: true
+    daemon_reload: yes
+
+- name: Generate local environment file to be used by commit hook
+  template:
+    src: environment.sh.j2
+    dest: "{{ inventory_dir }}/environment.sh"
+  delegate_to: localhost
+  run_once: yes

@@ -1,0 +1,4 @@
+domain: stackable.demo
+
+orchestrator:
+  port:  8080

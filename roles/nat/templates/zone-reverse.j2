@@ -1,0 +1,8 @@
+$ORIGIN {{ net.in_addr }}.in-addr.arpa.
+
+$TTL 60
+
+@       SOA     {{ master.name }}.{{ domain }}. hostmaster.{{ domain }}. (1 1h 1h 1h 1h)
+@       IN      NS      {{ master.name }}.{{ domain }}.
+{{ master.ip | ip_last_octet }}      IN      PTR     {{ master.name }}.{{ domain }}.
+

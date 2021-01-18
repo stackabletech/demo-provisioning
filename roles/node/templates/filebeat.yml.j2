@@ -1,0 +1,27 @@
+# ============================== Filebeat modules ==============================
+filebeat.config.inputs:
+  enabled: true
+  path: inputs.d/*.yml
+
+filebeat.config.modules:
+  # Glob pattern for configuration loading
+  path: ${path.config}/modules.d/*.yml
+
+  # Set to true to enable config reloading
+  reload.enabled: false
+
+# ======================= Elasticsearch template setting =======================
+setup.template.settings:
+  index.number_of_shards: 1
+
+# ================================== General ===================================
+name: {{ inventory_hostname }}
+
+# ---------------------------- Elasticsearch Output ----------------------------
+output.elasticsearch:
+  hosts: ["{{ {{ hostvars[groups.monitoring[0]]['inventory_hostname']}} }}:9200"]
+  index: "filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+
+# ================================= Processors =================================
+processors:
+  - add_host_metadata: ~

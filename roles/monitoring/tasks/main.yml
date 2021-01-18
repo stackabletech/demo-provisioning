@@ -1,0 +1,133 @@
+---
+- name: Ensure necessary paths are created
+  file:
+    path: "{{ item }}"
+    mode: 0644
+    owner: "{{ victoriametrics_user }}"
+    group: "{{ victoriametrics_user }}"
+    state: directory
+  with_items:
+    - "{{ victoriametrics_binarydirectory }}"
+    - "{{ victoriametrics_configdirectory }}"
+  when: install_victoriametrics
+
+- name: Install necessary packages
+  yum:
+    name: ["git", "maven2", "java-11-openjdk-devel"]
+    state: present
+
+- name: Download victoriametrics
+  unarchive:
+    src: "{{ victoriametrics_download }}"
+    dest: "{{ victoriametrics_binarydirectory }}"
+    owner: "{{ victoriametrics_user }}"
+    group: "{{ victoriametrics_user }}"
+    remote_src: yes
+  when: install_victoriametrics
+
+- name: Create victioriametrics service
+  template:
+    src: victoriametrics.service.j2
+    dest: "{{ servicedirectory }}/victoriametrics.service"
+  when: install_victoriametrics
+
+- name: Start victoriametrics
+  systemd:
+    name: victoriametrics
+    state: started
+    enabled: true
+    daemon_reload: yes
+  when: install_victoriametrics
+
+# Grafana
+
+- name: Install key for grafana repository
+  rpm_key:
+    state: present
+    key: https://packages.grafana.com/gpg.key
+  when: install_grafana
+
+- name: Install grafana repo
+  yum_repository:
+    name: "grafana-oss"
+    description: Elasticsearch Repository
+    baseurl: "{{ grafana_repo_baseurl }}"
+    state: present
+  when: install_grafana
+
+- name: Install grafana
+  yum:
+    name: grafana
+    state: present
+    update_cache: yes
+  when: install_grafana
+
+- name: Start grafana
+  systemd:
+    name: grafana-server
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: install_grafana
+
+
+# Elasticsearch
+
+- name: Install key for elastic repository
+  rpm_key:
+    state: present
+    key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+  when: install_elasticsearch
+
+- name: Install elastic repo
+  yum_repository:
+    name: "elasticsearch-{{ elasticsearch_repo_version }}"
+    description: Elasticsearch Repository
+    baseurl: "{{ elasticsearch_repo_baseurl }}"
+    state: present
+  when: install_elasticsearch
+
+- name: Install elasticsearch
+  yum:
+    name: elasticsearch
+    state: present
+    update_cache: yes
+  when: install_elasticsearch
+
+- name: Start elasticsearch
+  systemd:
+    name: elasticsearch
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: install_elasticsearch
+
+# Kibana
+- name: Install key for kibana repository
+  rpm_key:
+    state: present
+    key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+  when: install_kibana
+
+- name: Install elastic repo
+  yum_repository:
+    name: "elasticsearch-{{ elasticsearch_repo_version }}"
+    description: Elasticsearch Repository
+    baseurl: "{{ kibana_repo_baseurl }}"
+    state: present
+  when: install_kibana
+
+- name: Install kibana
+  yum:
+    name: kibana
+    state: present
+    update_cache: yes
+  when: install_kibana
+
+- name: Start kibana
+  systemd:
+    name: kibana
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: install_kibana

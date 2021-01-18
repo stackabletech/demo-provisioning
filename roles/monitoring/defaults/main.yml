@@ -1,0 +1,23 @@
+---
+servicedirectory: /etc/systemd/system
+victoriametrics_version: "1.37.4"
+victoriametrics_download: "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v{{ victoriametrics_version }}/victoria-metrics-v{{ victoriametrics_version }}.tar.gz"
+victoriametrics_binarydirectory: "/opt/victoriametrics-{{ victoriametrics_version }}"
+victoriametrics_configdirectory: "/etc/victoriametrics"
+victoriametrics_user: "root"
+
+elasticsearch_version: 7.8.0
+elasticsearch_repo_version: "{{ elasticsearch_version.split('.')[0] }}.x"
+elasticsearch_repo_baseurl: "https://artifacts.elastic.co/packages/{{ elasticsearch_repo_version }}/yum"
+
+kibana_version: 7.8.0
+kibana_repo_version: "{{ kibana_version.split('.')[0] }}.x"
+kibana_repo_baseurl: "https://artifacts.elastic.co/packages/{{ kibana_repo_version }}/yum"
+
+grafana_version:
+grafana_repo_baseurl: "https://packages.grafana.com/oss/rpm"
+
+install_grafana: no
+install_victoriametrics: no
+install_elasticsearch: yes
+install_kibana: yes

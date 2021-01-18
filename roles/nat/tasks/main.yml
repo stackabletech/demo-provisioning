@@ -1,0 +1,69 @@
+---
+- name: Install EPEL repo
+  yum:
+    name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    state: present
+
+- name: Install & configure bind
+  include: bind.yml
+
+- name: Enable IP forwarding
+  sysctl:
+   name: net.ipv4.ip_forward
+   value: "1"
+   sysctl_set: yes
+   state: present
+   reload: yes
+
+- name: Create action to run after firewall comes up to clear all rules
+  template:
+    src: setup-firewall.service.j2
+    dest: /etc/systemd/system/setup-firewall.service
+
+- name: Setup firewall
+  systemd:
+    name: setup-firewall
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Ensure OpenVPN is installed
+  yum:
+    name: openvpn
+    state: present
+
+- name: Ensure Diffie-Hellman parameters are created
+  command: openssl genpkey -genparam -algorithm DH -out /etc/openvpn/dh2048.pem 1024
+  args:
+    creates: /etc/openvpn/dh2048.pem
+
+- name: Ensure OpenVPN config is up to date
+  template:
+    src: server.conf
+    dest: /etc/openvpn/
+  notify:
+    - restart openvpn
+
+- name: Ensure Keys & Certificates are up to date
+  copy:
+    src: ./ 
+    dest: /etc/openvpn/
+  notify:
+    - restart openvpn
+
+- name: Ensure crypto files are protected
+  file:
+    path: /etc/openvpn/{{ item }}
+    mode: 0600
+    owner: root
+    group: root
+  with_items:
+    - server.key
+    - dh2048.pem
+    - ta.key
+
+- name: Ensure OpenVPN is running
+  service:
+    name: openvpn@server
+    state: started
+    enabled: yes

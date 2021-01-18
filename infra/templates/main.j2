@@ -1,0 +1,158 @@
+terraform {
+  required_providers {
+    profitbricks = {
+      source = "ionos-cloud/profitbricks"
+      version = "1.6.5"
+    }
+  }
+}
+
+variable "username" {
+  description = "Username to be used with the Profitbricks Cloud Provider - set using environment variable TF_VAR_username"
+  type        = string
+  sensitive   = true
+}
+
+variable "password" {
+  description = "Password to be used with the Profitbricks Cloud Provider - set using environment variable TF_VAR_password"
+  type        = string
+  sensitive   = true
+}
+
+provider "profitbricks" {
+  username = var.username
+  password = var.password
+}
+
+resource "profitbricks_datacenter" "{{ metadata.name }}" {
+  name = "{{ metadata.name }}"
+  location = "{{ spec.region }}"
+  description = "Provisioned via terraform for IONOS demo"
+}
+
+data "profitbricks_image" "centos7" {
+  name     = "{{ spec.osName }}"
+  type     = "HDD"
+  version  = "{{ spec.osVersion }}"
+  location = "{{ spec.region }}"
+}
+
+// Internet facing lan
+resource "profitbricks_lan" "external" {
+  name = "External Network"
+  datacenter_id = profitbricks_datacenter.{{ metadata.name }}.id
+  public = true
+}
+
+// Private lan
+resource "profitbricks_lan" "internal" {
+  name = "Internal Network"
+  datacenter_id = profitbricks_datacenter.{{ metadata.name }}.id
+  public = false
+}
+
+# NAT Server on the Edge to forward requests and serve as VPN endpoint
+resource "profitbricks_server" "nat" {
+  name = "nat"
+  datacenter_id = profitbricks_datacenter.{{ metadata.name }}.id
+  cores = 2
+  ram = 1024
+  availability_zone = "ZONE_1"
+
+  image_name = data.profitbricks_image.centos7.name
+  ssh_key_path = ["${path.module}/../keys/id_rsa.pub"]
+
+  volume {
+    name = "nat-storage"
+
+    size = 15
+    disk_type = "SSD"
+  }
+
+  nic {
+    lan = profitbricks_lan.external.id
+    dhcp = true
+    firewall_active = false
+  }
+}
+
+resource "profitbricks_nic" "nat_internal" {
+  datacenter_id = profitbricks_datacenter.{{ metadata.name }}.id
+  lan = profitbricks_lan.internal.id
+  server_id = profitbricks_server.nat.id
+
+  dhcp = true
+  firewall_active = false
+}
+
+
+{% for typename, typespec in spec.nodes.items() %}
+resource "profitbricks_server" "{{ typename }}" {
+  count = {{ typespec.numberOfNodes }}
+  name = "{{ typename }}-${count.index + 1}"
+  datacenter_id = profitbricks_datacenter.{{ metadata.name }}.id
+  cores = {{ typespec.numberOfCores }}
+  ram = {{ typespec.memoryMb }}
+  availability_zone = "ZONE_1"
+
+  image_name = data.profitbricks_image.centos7.name
+  ssh_key_path = ["${path.module}/../keys/id_rsa.pub"]
+
+  volume {
+    name = "{{ typename }}-storage-${count.index + 1}"
+    size = {{ typespec.diskSizeGb }}
+    disk_type = "{{ typespec.diskType }}"
+
+  }
+
+  nic {
+    name = "internal-nic-{{ typename }}-${count.index + 1}"
+    lan = profitbricks_lan.internal.id
+    dhcp = true
+    firewall_active = false
+  }
+}
+
+{% endfor %}
+
+resource "profitbricks_server" "monitoring" {
+  name = "monitoring"
+  datacenter_id = profitbricks_datacenter.{{ metadata.name }}.id
+  cores = 3
+  ram = 10240
+  availability_zone = "ZONE_1"
+
+  image_name = data.profitbricks_image.centos7.name
+  ssh_key_path = ["${path.module}/../keys/id_rsa.pub"]
+
+  volume {
+    name = "nat-storage"
+    size = 300
+    disk_type = "SSD"
+
+  }
+
+  nic {
+    lan = profitbricks_lan.internal.id
+    dhcp = true
+    firewall_active = false
+  }
+}
+
+
+# generate inventory file for Ansible
+resource "local_file" "hosts_cfg" {
+  content = templatefile("${path.module}/../templates/hosts.tpl",
+  {
+    nodetypes = [{% for typename in spec.nodes.keys() %}"{{ typename }}"{{ ", " if not loop.last }}{% endfor %}]
+    {% for typename in spec.nodes.keys() %}    {{ typename }} = profitbricks_server.{{ typename }}
+    {% endfor %}
+
+    nodes = { {% for typename, typespec in spec.nodes.items() %} "{{ typename }}" : profitbricks_server.{{ typename }}{{ "," if not loop.last }} {% endfor %} }
+    nat = profitbricks_server.nat
+    natinternalip = profitbricks_nic.nat_internal.ips[0]
+    monitoring = profitbricks_server.monitoring
+  }
+  )
+  filename = "${path.module}/demo_generated.inv"
+}

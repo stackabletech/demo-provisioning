@@ -1,0 +1,79 @@
+---
+- hosts: nodes
+  tasks:
+    - name: Stop agent
+      service:
+        name: stackable-agent
+        state: stopped
+
+    - name: Stop Services
+      service:
+        name: "{{ item }}"
+        state: stopped
+      with_items:
+        - "zookeeper-prod"
+        - "kafka-prod"
+        - "kafka-legacy"
+        - "spark-prod-master"
+        - "spark-marketing-master"
+        - "spark-prod-worker"
+        - "spark-marketing-worker"
+      ignore_errors: yes
+      tags: restartonly
+
+    - name: Remove services
+      file:
+        path: "/etc/systemd/system/{{ item }}"
+        state: absent
+      with_items:
+        - "zookeeper-prod.service"
+        - "kafka-prod.service"
+        - "kafka-legacy.service"
+        - "spark-prod-master.service"
+        - "spark-marketing-master.service"
+        - "spark-prod-worker.service"
+        - "spark-marketing-worker.service"
+
+    - name: Remove parcels, config and state
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "/opt/distro/parcels"
+        - "/etc/distro/state"
+        - "/etc/distro/config"
+
+    - name: Recreate parcel, config and state directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: 0644
+      with_items:
+        - "/opt/distro/parcels"
+        - "/etc/distro/state"
+        - "/etc/distro/config"
+
+- hosts: orchestrator
+  tasks:
+    - name: Restart orchestrator
+      service:
+        name: stackable-orchestrator
+        state: restarted
+      tags: restartonly
+
+    - name: Wait for port to become available again
+      wait_for:
+        port: 8080
+        delay: 10
+        timeout: 60
+      tags: restartonly
+
+- hosts: nodes
+  tasks:
+    - name: Restart agent
+      service:
+        name: stackable-agent
+        state: restarted
+      tags: restartonly

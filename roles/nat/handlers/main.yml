@@ -1,0 +1,9 @@
+---
+- name: restart openvpn
+  service: name=openvpn@server state=restarted
+
+- name: restart bind
+  service: name=named state=restarted
+
+- name: restart dhcpd
+  service: name=dhcpd state=restarted

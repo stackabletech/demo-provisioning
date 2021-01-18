@@ -1,0 +1,13 @@
+[Unit]
+Description=Stackable Orchestrator
+Before=
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/lib/jvm/java-11-openjdk/bin/java -jar {{ orchestratorbinarylocation}}
+Restart=on-abort
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
